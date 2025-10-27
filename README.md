@@ -1,1 +1,1 @@
-An ai agent aimed for retrosynthesis planning. Under construction.
+An ai agent designed for retrosynthesis planning. Under construction.
