@@ -1,0 +1,6 @@
+*.pkl
+*.csv
+*.pt
+/experiments
+/models
+__pycache__/
