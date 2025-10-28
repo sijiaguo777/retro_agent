@@ -3,7 +3,7 @@ import os
 import sys
 import json
 from pathlib import Path
-from pydantic_ai import Agent
+from pydantic_ai import Agent, RunContext
 from pydantic import BaseModel
 
 from utils.config import PROXY_CONFIG
@@ -50,28 +50,54 @@ class PlannerAgent:
         self.agent = Agent(  
             args.model_name,
             instructions=(f'''
-                You are an expert chemist performing retrosynthetic analysis.
-                Based on the validation results: {checker_res_content}, Your task is to plan a retrosynthetic strategy for a given target molecule represented in SMILES format. You will output your reasoning in the structured format defined by `PlanOutput`. As for core_structure_analysis, you should identify and describe the core structure (or scaffold) of the target molecule. This refers to the most characteristic or topologically central part of the molecule — e.g., a fused ring system, heteroaromatic skeleton, or macrocyclic framework. The goal is to clarify which part of the molecule defines its chemical identity and will guide the identification of key disconnection sites.
-
-                As for strategic_bond_disconnection, you should determine the most strategic bond disconnection* for initiating retrosynthesis.  
-                This should correspond to the most important reaction that simplifies the molecule  
-                — for instance, breaking a key amide, C–C, or C–O bond that defines the main framework,  
-                rather than minor functional group modifications.  
-                The chosen disconnection should meaningfully reduce molecular complexity  
-                and reveal plausible precursors.
-
-                As for reaction_type / reaction_name / description —  
-                Specify the general reaction class (e.g., amide coupling, Suzuki cross-coupling,  
-                reductive amination, etc.), give a reaction name if known,  
-                and briefly explain why this reaction and disconnection are chemically reasonable.
-
-                Be concise but chemically precise.  
-                Focus on the structural logic of the disconnection rather than enumerating all possible reactions.  
-                Your goal is to produce a clear, interpretable retrosynthetic reasoning step of planning. Output strictly in the required JSON schema.
-                '''), output_type=PlanOutput
-        )
+                You are an expert chemist performing retrosynthetic analysis.Your task is to design a retrosynthetic strategy for a given target molecule represented in SMILES format, and present your reasoning in the structured format defined by PlanOutput.
+                          
+                You may use the tool 'find_scaffold' to identify and describe the core structure (scaffold) of the target molecule. This refers to the most characteristic or topologically central part of the molecule—such as a fused ring system, heteroaromatic skeleton, or macrocyclic framework. Your goal is to clarify which part of the molecule defines its chemical identity, as this will guide the selection of key disconnection sites.
+                Determine the most strategic bond disconnection to initiate retrosynthesis.This should correspond to the key transformation that most effectively simplifies the molecular framework—for example, breaking a major amide, C–C, or C–O bond rather than performing minor functional-group modifications.The chosen disconnection should meaningfully reduce molecular complexity and reveal plausible synthetic precursors.
+                Note: Less stable regions of the molecule are typically easier to modify and thus represent likely points of retrosynthetic cleavage.
+                          
+                For each proposed disconnection, specify:
+                    •	Reaction type (e.g., amide coupling, Suzuki cross-coupling, reductive amination, etc.)
+                    •	Reaction name (if known)
+                    •	Brief chemical rationale — explain why this reaction and disconnection are chemically reasonable.
+                          
+                Be concise but chemically precise, focusing on the structural logic of the disconnection rather than listing all possible reactions.Your goal is to produce a clear and interpretable retrosynthetic reasoning step.
+                          
+                Reference Example: For instance, the scaffold of O=C(N[C@@H]1C(=O)N2[C@@H]1SC([C@@H]2C(=O)O)(C)C)COc1ccccc1is C1C(=O)N2C1SC(C2)C The critical step in retrosynthesis is defined as any modification of the scaffold, and the most unstable part of the scaffold is often the most feasible disconnection site. 
+                          
+                You must strictly follow the output format and return in JSON format.
+                '''), output_type=PlanOutput)
         
-    @timed
+        @self.agent.tool
+        def find_scaffold(ctx:RunContext, smiles: str, generic: bool = False) -> str:
+            """
+            Tool to identify molecular scaffold.
+            ref: https://docs.datamol.io/stable/tutorials/Scaffolds.html
+            paper: https://pubs.acs.org/doi/10.1021/acs.jmedchem.5b01746
+            计算分子的 Murcko scaffold
+            参数：
+            smiles : str
+                输入分子的 SMILES 字符串
+            generic : bool, optional
+                是否计算 generic scaffold（将原子类型简化为碳原子），默认 False
+            返回：
+            scaffold_smiles : str
+                scaffold 的 SMILES 表示；如果解析失败则返回 None
+            """
+            import datamol as dm
+            mol = dm.to_mol(smiles)
+
+            if mol is None:
+                print(f"Cannot parse {smiles}")
+                return None
+
+            try:
+                scaffold = dm.to_scaffold_murcko(mol) # Murcko scaffold 
+                return dm.to_smiles(scaffold)
+            except Exception as e:
+                print(f"Error when computing scaffold: {e}")
+                return None
+    
     def plan_synthesis(self, smiles: str) -> str:
         prompt = smiles
         try:
@@ -79,7 +105,7 @@ class PlannerAgent:
             return f"Plan for {smiles}: {result.output}"
         except Exception as e:
             return f"{str(e)}"
-        
+    
 
 if __name__ == "__main__":
     if not args.input_smiles:
@@ -98,10 +124,14 @@ if __name__ == "__main__":
             except Exception:
                 history = []
 
-    history.append({
-        "input_smiles": args.input_smiles,
-        "result": result
-    })
+    existing_entry = next((entry for entry in history if entry["input_smiles"] == args.input_smiles), None)
+    if existing_entry:
+        existing_entry["result"] = result
+    else:
+        history.append({
+            "input_smiles": args.input_smiles,
+            "result": result
+        })
 
     with open(history_path, "w", encoding="utf-8") as f:
         json.dump(history, f, ensure_ascii=False, indent=2)
