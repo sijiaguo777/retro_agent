@@ -1,6 +1,5 @@
 PROXY_CONFIG = {
-    "HTTPS_PROXY": "http://127.0.0.1:8001",
-    "HTTP_PROXY": "http://127.0.0.1:8001"
+    "SOCKS_PROXY": "socks5://127.0.0.1:1080",
 }
 
 PATH_CONFIG = {

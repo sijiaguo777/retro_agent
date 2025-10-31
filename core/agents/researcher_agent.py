@@ -1,22 +1,25 @@
 import os
-import uuid
-from typing import List, Dict, Any, Optional
 from pydantic_ai import Agent
 
 from utils.parse_args import args
 from utils.config import PROXY_CONFIG
 from utils.data_handler import DataHandler
 
+
+os.environ["OPENAI_BASE_URL"] = args.base_url
 for key, value in PROXY_CONFIG.items():
     os.environ[key] = value
 
+
 class ResearcherAgent():
-    def __init__(self):
+    def __init__(self,plan:str):
         self.agent = Agent(
             args.model_name,
             system_prompt=(
-                f'''You are a professional chemist with profond knowledge of chemical synthesis. You are provided with a synthesis plan {args.plan_res}. 
                 
+                "You are a professional chemist with profond knowledge of chemical synthesis. " +
+                "You are provided with a synthesis plan:\n " + str(plan) +
+                '''
                 You are an expert chemist specializing in retrosynthetic analysis, with extensive experience in designing multi-step synthetic routes for complex organic molecules.
 
                 You are provided with a detailed retrosynthetic analysis plan for a given target molecule.
@@ -64,8 +67,21 @@ class ResearcherAgent():
         self.data_handler = DataHandler()
 
 
+if __name__ == "__main__":
+    import json
+    plan_path = args.plan_res
+    with open(plan_path, "r") as f:
+        plan = json.load(f)
+        if isinstance(plan, list):
+            plan_content = plan[0]["result"]
+        elif isinstance(plan, dict):
+            plan_content = plan["result"]
+        else:
+            plan_content = {}
 
-
-
-
+    researcher_agent = ResearcherAgent(plan_content)
+    response = researcher_agent.agent.run_sync()
+    print("Researcher Agent Response:")
+    print(response.output) 
+    
 

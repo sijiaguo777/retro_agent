@@ -2,9 +2,11 @@
 import os
 import sys
 import json
+import openai
 from pathlib import Path
 from pydantic_ai import Agent, RunContext
 from pydantic import BaseModel
+
 
 from utils.config import PROXY_CONFIG
 from utils.parse_args import args
@@ -13,6 +15,8 @@ for key, value in PROXY_CONFIG.items():
     os.environ[key] = value
 os.environ["OPENAI_BASE_URL"] = args.base_url
 
+# api_key = os.environ["OPENAI_API_KEY"]
+# client = openai.OpenAI(base_url=args.base_url, api_key=api_key, timeout=180)
 
 def timed(func):
     import time
@@ -50,7 +54,7 @@ class PlannerAgent:
         self.agent = Agent(  
             args.model_name,
             instructions=(f'''
-                You are an expert chemist performing retrosynthetic analysis.Your task is to design a retrosynthetic strategy for a given target molecule represented in SMILES format, and present your reasoning in the structured format defined by PlanOutput.
+                You are an expert chemist performing retrosynthetic analysis. Your task is to design a retrosynthetic strategy for a given target molecule represented in SMILES format, and present your reasoning in the structured format defined by PlanOutput.
                           
                 You may use the tool 'find_scaffold' to identify and describe the core structure (scaffold) of the target molecule. This refers to the most characteristic or topologically central part of the molecule—such as a fused ring system, heteroaromatic skeleton, or macrocyclic framework. Your goal is to clarify which part of the molecule defines its chemical identity, as this will guide the selection of key disconnection sites.
                 Determine the most strategic bond disconnection to initiate retrosynthesis.This should correspond to the key transformation that most effectively simplifies the molecular framework—for example, breaking a major amide, C–C, or C–O bond rather than performing minor functional-group modifications.The chosen disconnection should meaningfully reduce molecular complexity and reveal plausible synthetic precursors.
