@@ -11,9 +11,9 @@ from pydantic import BaseModel
 from utils.config import PROXY_CONFIG
 from utils.parse_args import args
 
+os.environ["OPENAI_BASE_URL"] = args.base_url
 for key, value in PROXY_CONFIG.items():
     os.environ[key] = value
-os.environ["OPENAI_BASE_URL"] = args.base_url
 
 # api_key = os.environ["OPENAI_API_KEY"]
 # client = openai.OpenAI(base_url=args.base_url, api_key=api_key, timeout=180)
